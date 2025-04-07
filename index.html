@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <title>可编辑表格与汇总</title>
+</head>
+
+<body class="font-inter bg-gray-50 p-8 text-black">
+    <h1 class="text-center text-3xl font-bold mb-6">可编辑表格与汇总</h1>
+    <p id="totalResult" class="text-xl font-bold mt-4 text-center">
+        企业数量汇总: <span id="companyCountCurrent">0</span><br>
+        岗位数量汇总: <span id="positionCountCurrent">0</span>
+    </p>
+    <div class="flex justify-center gap-4 mb-4">
+        <button id="exportButton" class="bg-purple-500 text-white px-4 py-2 rounded-md hover:scale-105 transition-transform">导出 Excel</button>
+    </div>
+    <div class="overflow-x-auto">
+        <table id="dataTable" class="w-full bg-white border-collapse shadow-md mb-6">
+            <thead>
+                <tr>
+                    <th class="border border-gray-300 px-4 py-2 bg-gray-100 font-semibold text-left">序号</th>
+                    <th class="border border-gray-300 px-4 py-2 bg-gray-100 font-semibold text-left">企业名称</th>
+                    <th class="border border-gray-300 px-4 py-2 bg-gray-100 font-semibold text-left">岗位数量</th>
+                    <th class="border border-gray-300 px-4 py-2 bg-gray-100 font-semibold text-left">联系人</th>
+                    <th class="border border-gray-300 px-4 py-2 bg-gray-100 font-semibold text-left">联系电话</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 这里可根据需求添加更多初始行 -->
+            </tbody>
+        </table>
+    </div>
+    <div id="toast" class="hidden fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-md shadow-md animate-fade-in-out">操作成功</div>
+
+    <!-- 动态生成的弹窗 -->
+    <div id="dynamicModals"></div>
+
+    <script>
+        const exportButton = document.getElementById('exportButton');
+        const companyCountCurrent = document.getElementById('companyCountCurrent');
+        const positionCountCurrent = document.getElementById('positionCountCurrent');
+        const dataTable = document.getElementById('dataTable');
+        const toast = document.getElementById('toast');
+        const dynamicModals = document.getElementById('dynamicModals');
+
+        function calculateSummary() {
+            const nameInputs = document.querySelectorAll('#dataTable tbody tr td:nth-child(2) input[type="text"]');
+            const positionInputs = document.querySelectorAll('#dataTable tbody tr td:nth-child(3) input[type="number"]');
+            let validCompanies = 0;
+            let totalPositions = 0;
+
+            nameInputs.forEach((input, index) => {
+                if (input.value.trim()!== '') {
+                    validCompanies++;
+                    const positionValue = parseFloat(positionInputs[index].value);
+                    if (!isNaN(positionValue)) {
+                        totalPositions += positionValue;
+                    }
+                }
+            });
+
+            companyCountCurrent.textContent = validCompanies;
+            positionCountCurrent.textContent = totalPositions;
+            saveData();
+        }
+
+        function saveData() {
+            const rows = [];
+            const tbody = dataTable.getElementsByTagName('tbody')[0];
+            for (let i = 0; i < tbody.rows.length; i++) {
+                const row = tbody.rows[i];
+                const name = row.cells[1].querySelector('input').value;
+                const position = row.cells[2].querySelector('input').value;
+                const contact = row.cells[3].querySelector('input').value;
+                const phone = row.cells[4].querySelector('input').value;
+                rows.push({ name, position, contact, phone });
+            }
+            localStorage.setItem('tableData', JSON.stringify(rows));
+        }
+
+        function loadData() {
+            const savedData = localStorage.getItem('tableData');
+            if (savedData) {
+                const rows = JSON.parse(savedData);
+                const tbody = dataTable.getElementsByTagName('tbody')[0];
+                tbody.innerHTML = '';
+                rows.forEach((rowData, index) => {
+                    addRow(rowData.name, rowData.position, rowData.contact, rowData.phone);
+                });
+                calculateSummary();
+            }
+        }
+
+        function addRow(name = '', position = '', contact = '', phone = '') {
+            const tbody = dataTable.getElementsByTagName('tbody')[0];
+            const newRow = tbody.insertRow();
+            const rowIndex = tbody.rows.length;
+
+            const cell1 = newRow.insertCell(0);
+            cell1.textContent = rowIndex;
+            cell1.classList.add('border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+
+            const cell2 = newRow.insertCell(1);
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.value = name;
+            nameInput.disabled = true;
+            nameInput.classList.add('w-full', 'px-2', 'py-1', 'border', 'border-gray-300', 'rounded-md', 'focus:border-blue-500', 'focus:ring-blue-500', 'focus:outline-none');
+            cell2.appendChild(nameInput);
+            cell2.classList.add('border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+
+            const cell3 = newRow.insertCell(2);
+            const positionInput = document.createElement('input');
+            positionInput.type = 'number';
+            positionInput.value = position;
+            positionInput.disabled = true;
+            positionInput.classList.add('w-full', 'px-2', 'py-1', 'border', 'border-gray-300', 'rounded-md', 'focus:border-blue-500', 'focus:ring-blue-500', 'focus:outline-none');
+            cell3.appendChild(positionInput);
+            cell3.classList.add('border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+
+            const cell4 = newRow.insertCell(3);
+            const contactInput = document.createElement('input');
+            contactInput.type = 'text';
+            contactInput.value = contact;
+            contactInput.disabled = true;
+            contactInput.classList.add('w-full', 'px-2', 'py-1', 'border', 'border-gray-300', 'rounded-md', 'focus:border-blue-500', 'focus:ring-blue-500', 'focus:outline-none');
+            cell4.appendChild(contactInput);
+            cell4.classList.add('border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+
+            const cell5 = newRow.insertCell(4);
+            const phoneInput = document.createElement('input');
+            phoneInput.type = 'tel';
+            phoneInput.value = phone;
+            phoneInput.disabled = true;
+            phoneInput.classList.add('w-full', 'px-2', 'py-1', 'border', 'border-gray-300', 'rounded-md', 'focus:border-blue-500', 'focus:ring-blue-500', 'focus:outline-none');
+            cell5.appendChild(phoneInput);
+            cell5.classList.add('border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+        }
+
+        function updateRowNumbers() {
+            const tbody = dataTable.getElementsByTagName('tbody')[0];
+            for (let i = 0; i < tbody.rows.length; i++) {
+                const row = tbody.rows[i];
+                row.cells[0].textContent = i + 1;
+            }
+        }
+
+        // 导出 Excel 功能
+        exportButton.addEventListener('click', () => {
+            const tableHeaders = [];
+            const theadCells = dataTable.querySelectorAll('thead th');
+            theadCells.forEach(cell => {
+                tableHeaders.push(cell.textContent);
+            });
+
+            const tableData = [];
+            const tbodyRows = dataTable.querySelectorAll('tbody tr');
+            tbodyRows.forEach(row => {
+                const rowData = [];
+                const cells = row.querySelectorAll('td');
+                for (let i = 0; i < cells.length; i++) {
+                    const input = cells[i].querySelector('input');
+                    if (input) {
+                        rowData.push(input.value);
+                    } else {
+                        rowData.push(cells[i].textContent);
+                    }
+                }
+                tableData.push(rowData);
+            });
+
+            // 添加汇总数据
+            tableData.push(['', '', '', '', '']);
+            tableData.push(['企业数量汇总', companyCountCurrent.textContent, '', '', '']);
+            tableData.push(['岗位数量汇总', positionCountCurrent.textContent, '', '', '']);
+
+            const ws = XLSX.utils.aoa_to_sheet([tableHeaders, ...tableData]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+            XLSX.writeFile(wb, '零工市场汇总表.xlsx');
+            showToast('导出成功');
+        });
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function openModal(index) {
+            const modal = document.getElementById(`companyModal-${index}`);
+            if (modal) {
+                modal.style.display = 'block';
+            }
+        }
+
+        function closeModal(index) {
+            const modal = document.getElementById(`companyModal-${index}`);
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        function createModal(index) {
+            const modal = document.createElement('div');
+            modal.id = `companyModal-${index}`;
+            modal.classList.add('modal');
+
+            const modalContent = document.createElement('div');
+            modalContent.classList.add('modal-content');
+
+            const closeButton = document.createElement('span');
+            closeButton.classList.add('close');
+            closeButton.textContent = '×';
+            closeButton.addEventListener('click', () => closeModal(index));
+            modalContent.appendChild(closeButton);
+
+            const title = document.createElement('h2');
+            title.classList.add('text-2xl', 'font-bold', 'mb-4');
+            title.textContent = '具体岗位如下：';
+            modalContent.appendChild(title);
+
+            const table = document.createElement('table');
+            table.id = `modalTable-${index}`;
+            table.classList.add('mb-4');
+
+            const tableHead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            const headCell1 = document.createElement('th');
+            headCell1.classList.add('bg-gray-100', 'border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+            headCell1.textContent = '岗位信息';
+            const headCell2 = document.createElement('th');
+            headCell2.classList.add('bg-gray-100', 'border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+            headCell2.textContent = '操作';
+            headRow.appendChild(headCell1);
+            headRow.appendChild(headCell2);
+            tableHead.appendChild(headRow);
+            table.appendChild(tableHead);
+
+            const tableBody = document.createElement('tbody');
+            table.appendChild(tableBody);
+            modalContent.appendChild(table);
+
+            const addRowButton = document.createElement('button');
+            addRowButton.id = `addModalRow-${index}`;
+            addRowButton.classList.add('bg-green-500', 'text-white', 'px-4', 'py-2', 'rounded');
+            addRowButton.textContent = '添加行';
+            addRowButton.addEventListener('click', () => {
+                const newRow = document.createElement('tr');
+                const cell1 = document.createElement('td');
+                const positionInput = document.createElement('input');
+                positionInput.type = 'text';
+                cell1.appendChild(positionInput);
+                cell1.classList.add('border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+
+                const cell2 = document.createElement('td');
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = '删除';
+                deleteButton.classList.add('delete-modal-row', 'bg-red-500', 'text-white', 'px-2', 'py-1', 'rounded');
+                deleteButton.addEventListener('click', () => {
+                    tableBody.removeChild(newRow);
+                    saveData();
+                });
+                cell2.appendChild(deleteButton);
+                cell2.classList.add('border', 'border-gray-300', 'px-4', 'py-2', 'text-left');
+
+                newRow.appendChild(cell1);
+                newRow.appendChild(cell2);
+                tableBody.appendChild(newRow);
+                saveData();
+            });
+            modalContent.appendChild(addRowButton);
+
+            modal.appendChild(modalContent);
+            dynamicModals.appendChild(modal);
+        }
+
+        // 初始化加载数据
+        loadData();
+
+        // 自动读取源.csv文件
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '源.csv', true);
+        xhr.onload = function () {
+            if (xhr.status === 200) {
+                try {
+                    const csvData = xhr.responseText;
+                    const lines = csvData.split('\n');
+                    const headers = lines[0].split(',');
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (line) {
+                            const values = line.split(',');
+                            const nameIndex = headers.indexOf('企业名称');
+                            const positionIndex = headers.indexOf('岗位数量');
+                            const contactIndex = headers.indexOf('联系人');
+                            const phoneIndex = headers.indexOf('联系电话');
+                            const name = nameIndex!== -1? values[nameIndex] : '';
+                            const position = positionIndex!== -1? values[positionIndex] : '';
+                            const contact = contactIndex!== -1? values[contactIndex] : '';
+                            const phone = phoneIndex!== -1? values[phoneIndex] : '';
+                            addRow(name, position, contact, phone);
+                        }
+                    }
+                    calculateSummary();
+                    showToast('已自动读取文件内容');
+                } catch (error) {
+                    showToast(`读取文件时出错: ${error.message}`);
+                }
+            } else {
+                showToast(`请求文件失败，状态码: ${xhr.status}`);
+            }
+        };
+
+        xhr.onerror = function () {
+            showToast('网络请求出错，请检查网络连接');
+        };
+
+        xhr.send();
+    </script>
+</body>
+
+</html>    
