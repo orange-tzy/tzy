@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <title>可编辑表格与汇总</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            padding: 2rem;
+            margin: 0;
+            color: #000;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: clamp(1.875rem, 3vw, 2.25rem);
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: #000;
+        }
+
+        button {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            border: none;
+            padding: 0.625rem 1.25rem;
+            border-radius: 0.375rem;
+            font-size: 0.9375rem;
+            color: #000;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-bottom: 1.5rem;
+        }
+
+        th,
+        td {
+            border: 1px solid #e5e7eb;
+            padding: 0.75rem;
+            text-align: left;
+            color: #000;
+        }
+
+        th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="tel"] {
+            width: 100%;
+            padding: 0.375rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.25rem;
+            font-size: 0.9375rem;
+            transition: border-color 0.2s ease-in-out;
+            color: #000;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        input[type="tel"]:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+        }
+
+       .button-group {
+            margin-bottom: 1rem;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 1rem;
+            }
+
+            table {
+                font-size: 0.875rem;
+            }
+
+            button {
+                font-size: 0.875rem;
+                padding: 0.5rem 1rem;
+            }
+
+            th,
+            td {
+                padding: 0.625rem;
+            }
+        }
+
+       .toast {
+            display: none;
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #374151;
+            color: #000;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            z-index: 9999;
+            animation: fadeInOut 3s ease;
+        }
+
+        @keyframes fadeInOut {
+            0% {
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+            }
+        }
+
+       .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(3px);
+        }
+
+       .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            animation: slideDown 0.3s ease-out;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+       .close {
+            color: #9ca3af;
+            float: right;
+            font-size: 1.5rem;
+            font-weight: bold;
+            transition: color 0.2s ease-in-out;
+        }
+
+       .close:hover,
+       .close:focus {
+            color: #374151;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        #dataTable tbody tr td:nth-child(2) input[disabled] {
+            color: #000;
+            cursor: pointer;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+       .table-container {
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>可编辑表格与汇总</h1>
+    <p id="totalResult" class="text-xl font-bold mt-4 text-center">
+        企业数量汇总: <span id="companyCountCurrent">0</span><br>
+        岗位数量汇总: <span id="positionCountCurrent">0</span>
+    </p>
+    <div class="button-group">
+        <button id="exportButton" class="bg-purple-500">导出 Excel</button>
+    </div>
+    <div class="table-container">
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>序号</th>
+                    <th>企业名称</th>
+                    <th>岗位数量</th>
+                    <th>联系人</th>
+                    <th>联系电话</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 这里可根据需求添加更多初始行 -->
+            </tbody>
+        </table>
+    </div>
+    <div id="toast" class="toast">操作成功</div>
+
+    <!-- 动态生成的弹窗 -->
+    <div id="dynamicModals"></div>
+
+    <script>
+        const exportButton = document.getElementById('exportButton');
+        const companyCountCurrent = document.getElementById('companyCountCurrent');
+        const positionCountCurrent = document.getElementById('positionCountCurrent');
+        const dataTable = document.getElementById('dataTable');
+        const toast = document.getElementById('toast');
+        const dynamicModals = document.getElementById('dynamicModals');
+
+        function calculateSummary() {
+            const nameInputs = document.querySelectorAll('#dataTable tbody tr td:nth-child(2) input[type="text"]');
+            const positionInputs = document.querySelectorAll('#dataTable tbody tr td:nth-child(3) input[type="number"]');
+            let validCompanies = 0;
+            let totalPositions = 0;
+
+            nameInputs.forEach((input, index) => {
+                if (input.value.trim()!== '') {
+                    validCompanies++;
+                    const positionValue = parseFloat(positionInputs[index].value);
+                    if (!isNaN(positionValue)) {
+                        totalPositions += positionValue;
+                    }
+                }
+            });
+
+            companyCountCurrent.textContent = validCompanies;
+            positionCountCurrent.textContent = totalPositions;
+            saveData();
+        }
+
+        function saveData() {
+            const rows = [];
+            const tbody = dataTable.getElementsByTagName('tbody')[0];
+            for (let i = 0; i < tbody.rows.length; i++) {
+                const row = tbody.rows[i];
+                const name = row.cells[1].querySelector('input').value;
+                const position = row.cells[2].querySelector('input').value;
+                const contact = row.cells[3].querySelector('input').value;
+                const phone = row.cells[4].querySelector('input').value;
+                rows.push({ name, position, contact, phone });
+            }
+            localStorage.setItem('tableData', JSON.stringify(rows));
+        }
+
+        function loadData() {
+            const savedData = localStorage.getItem('tableData');
+            if (savedData) {
+                const rows = JSON.parse(savedData);
+                const tbody = dataTable.getElementsByTagName('tbody')[0];
+                tbody.innerHTML = '';
+                rows.forEach((rowData, index) => {
+                    addRow(rowData.name, rowData.position, rowData.contact, rowData.phone);
+                });
+                calculateSummary();
+            }
+        }
+
+        function addRow(name = '', position = '', contact = '', phone = '') {
+            const tbody = dataTable.getElementsByTagName('tbody')[0];
+            const newRow = tbody.insertRow();
+            const rowIndex = tbody.rows.length - 1;
+
+            const cell1 = newRow.insertCell(0);
+            cell1.textContent = rowIndex + 1;
+
+            const cell2 = newRow.insertCell(1);
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.value = name;
+            nameInput.disabled = true;
+            cell2.appendChild(nameInput);
+
+            const cell3 = newRow.insertCell(2);
+            const positionInput = document.createElement('input');
+            positionInput.type = 'number';
+            positionInput.value = position;
+            positionInput.disabled = true;
+            cell3.appendChild(positionInput);
+
+            const cell4 = newRow.insertCell(3);
+            const contactInput = document.createElement('input');
+            contactInput.type = 'text';
+            contactInput.value = contact;
+            contactInput.disabled = true;
+            cell4.appendChild(contactInput);
+
+            const cell5 = newRow.insertCell(4);
+            const phoneInput = document.createElement('input');
+            phoneInput.type = 'tel';
+            phoneInput.value = phone;
+            phoneInput.disabled = true;
+            cell5.appendChild(phoneInput);
+
+            const cell6 = newRow.insertCell(5);
+            const detailButton = document.createElement('button');
+            detailButton.textContent = '详情';
+            detailButton.classList.add('detail-button', 'bg-blue-500', 'text-white', 'px-2', 'py-1', 'rounded', 'mr-2');
+            detailButton.addEventListener('click', () => {
+                const rowIndex = Array.from(dataTable.tBodies[0].rows).indexOf(newRow);
+                openModal(rowIndex);
+            });
+            cell6.appendChild(detailButton);
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = '删除';
+            deleteButton.classList.add('delete-button', 'bg-red-500', 'text-white', 'px-2', 'py-1', 'rounded');
+            deleteButton.addEventListener('click', () => {
+                const modalToRemove = document.getElementById(`companyModal-${rowIndex}`);
+                if (modalToRemove) {
+                    modalToRemove.remove();
+                }
+                tbody.deleteRow(newRow.rowIndex);
+                updateRowNumbers();
+                calculateSummary();
+                showToast('删除行成功');
+
+                // 更新模态框的索引
+                const remainingRows = dataTable.tBodies[0].rows;
+                for (let i = 0; i < remainingRows.length; i++) {
+                    const row = remainingRows[i];
+                    const newRowIndex = i;
+                    const detailButton = row.querySelector('.detail-button');
+                    const deleteButton = row.querySelector('.delete-button');
+                    const modal = document.getElementById(`companyModal-${rowIndex}`);
+
+                    if (detailButton) {
+                        detailButton.addEventListener('click', () => {
+                            openModal(newRowIndex);
+                        });
+                    }
+
+                    if (deleteButton) {
+                        deleteButton.addEventListener('click', () => {
+                            const newModalToRemove = document.getElementById(`companyModal-${newRowIndex}`);
+                            if (newModalToRemove) {
+                                newModalToRemove.remove();
+                            }
+                            tbody.deleteRow(row.rowIndex);
+                            updateRowNumbers();
+                            calculateSummary();
+                            showToast('删除行成功');
+                        });
+                    }
+
+                    if (modal) {
+                        modal.id = `companyModal-${newRowIndex}`;
+                        const closeButton = modal.querySelector('.close');
+                        if (closeButton) {
+                            closeButton.addEventListener('click', () => {
+                                closeModal(newRowIndex);
+                            });
+                        }
+                    }
+                }
+            });
+            cell6.appendChild(deleteButton);
+
+            createModal(rowIndex);
+        }
+
+        function updateRowNumbers() {
+            const tbody = dataTable.getElementsByTagName('tbody')[0];
+            for (let i = 0; i < tbody.rows.length; i++) {
+                const row = tbody.rows[i];
+                row.cells[0].textContent = i + 1;
+            }
+        }
+
+        // 导出 Excel 功能
+        exportButton.addEventListener('click', () => {
+            const tableHeaders = [];
+            const theadCells = dataTable.querySelectorAll('thead th');
+            theadCells.forEach(cell => {
+                if (cell.textContent!== '操作') {
+                    tableHeaders.push(cell.textContent);
+                }
+            });
+
+            const tableData = [];
+            const tbodyRows = dataTable.querySelectorAll('tbody tr');
+            tbodyRows.forEach(row => {
+                const rowData = [];
+                const cells = row.querySelectorAll('td');
+                for (let i = 0; i < cells.length - 1; i++) {
+                    const input = cells[i].querySelector('input');
+                    if (input) {
+                        rowData.push(input.value);
+                    } else {
+                        rowData.push(cells[i].textContent);
+                    }
+                }
+                tableData.push(rowData);
+            });
+
+            // 添加汇总数据
+            tableData.push(['', '', '', '', '']);
+            tableData.push(['企业数量汇总', companyCountCurrent.textContent, '', '', '']);
+            tableData.push(['岗位数量汇总', positionCountCurrent.textContent, '', '', '']);
+
+            const ws = XLSX.utils.aoa_to_sheet([tableHeaders, ...tableData]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+            XLSX.writeFile(wb, '零工市场汇总表.xlsx');
+            showToast('导出成功');
+        });
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        function openModal(index) {
+            const modal = document.getElementById(`companyModal-${index}`);
+            if (modal) {
+                modal.style.display = 'block';
+            }
+        }
+
+        function closeModal(index) {
+            const modal = document.getElementById(`companyModal-${index}`);
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        function createModal(index) {
+            const modal = document.createElement('div');
+            modal.id = `companyModal-${index}`;
+            modal.classList.add('modal');
+
+            const modalContent = document.createElement('div');
+            modalContent.classList.add('modal-content');
+
+            const closeButton = document.createElement('span');
+            closeButton.classList.add('close');
+            closeButton.textContent = '×';
+            closeButton.addEventListener('click', () => closeModal(index));
+            modalContent.appendChild(closeButton);
+
+            const title = document.createElement('h2');
+            title.classList.add('text-2xl', 'font-bold', 'mb-4');
+            title.textContent = '具体岗位如下：';
+            modalContent.appendChild(title);
+
+            const table = document.createElement('table');
+            table.id = `modalTable-${index}`;
+            table.classList.add('mb-4');
+
+            const tableHead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            const headCell1 = document.createElement('th');
+            headCell1.classList.add('bg-gray-100');
+            headCell1.textContent = '岗位信息';
+            const headCell2 = document.createElement('th');
+            headCell2.classList.add('bg-gray-100');
+            headCell2.textContent = '操作';
+            headRow.appendChild(headCell1);
+            headRow.appendChild(headCell2);
+            tableHead.appendChild(headRow);
+            table.appendChild(tableHead);
+
+            const tableBody = document.createElement('tbody');
+            table.appendChild(tableBody);
+            modalContent.appendChild(table);
+
+            const addRowButton = document.createElement('button');
+            addRowButton.id = `addModalRow-${index}`;
+            addRowButton.classList.add('bg-green-500', 'text-white', 'px-4', 'py-2', 'rounded');
+            addRowButton.textContent = '添加行';
+            addRowButton.addEventListener('click', () => {
+                const newRow = document.createElement('tr');
+                const cell1 = document.createElement('td');
+                const positionInput = document.createElement('input');
+                positionInput.type = 'text';
+                cell1.appendChild(positionInput);
+
+                const cell2 = document.createElement('td');
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = '删除';
+                deleteButton.classList.add('delete-modal-row', 'bg-red-500', 'text-white', 'px-2', 'py-1', 'rounded');
+                deleteButton.addEventListener('click', () => {
+                    tableBody.removeChild(newRow);
+                    saveData();
+                });
+                cell2.appendChild(deleteButton);
+
+                newRow.appendChild(cell1);
+                newRow.appendChild(cell2);
+                tableBody.appendChild(newRow);
+                saveData();
+            });
+            modalContent.appendChild(addRowButton);
+
+            modal.appendChild(modalContent);
+            dynamicModals.appendChild(modal);
+        }
+
+        // 初始化加载数据
+        loadData();
+
+        // 自动读取源.xlsx文件
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '源.xlsx', true);
+        xhr.responseType = 'arraybuffer';
+
+        xhr.onload = function () {
+            if (xhr.status === 200) {
+                try {
+                    const data = new Uint8Array(xhr.response);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    jsonData.forEach((row) => {
+                        const name = row['企业名称'] || '';
+                        const position = row['岗位数量'] || '';
+                        const contact = row['联系人'] || '';
+                        const phone = row['联系电话'] || '';
+                        addRow(name, position, contact, phone);
+                    });
+
+                    calculateSummary();
+                    showToast('已自动读取文件内容');
+                } catch (error) {
+                    showToast(`读取文件时出错: ${error.message}`);
+                }
+            } else {
+                showToast(`请求文件失败，状态码: ${xhr.status}`);
+            }
+        };
+
+        xhr.onerror = function () {
+            showToast('网络请求出错，请检查网络连接');
+        };
+
+        xhr.send();
+    </script>
+</body>
+
+</html>
+    
